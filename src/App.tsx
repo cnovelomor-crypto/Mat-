@@ -16,12 +16,19 @@ export default function App() {
   const [fetchingProfile, setFetchingProfile] = useState(false);
 
   useEffect(() => {
+    let unsubProfile: (() => void) | null = null;
+
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (unsubProfile) {
+        unsubProfile();
+        unsubProfile = null;
+      }
+
       setLoading(true);
       if (firebaseUser) {
         setFetchingProfile(true);
         // Set up a listener for the parent user document
-        const unsubProfile = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
+        unsubProfile = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
             const parentData: AppUser = {
@@ -37,8 +44,8 @@ export default function App() {
             setFetchingProfile(false);
             setLoading(false);
           } else {
-            // Handle profile not found - maybe user is still being created
             console.log("Profile not found yet, waiting...");
+            // Keep fetchingProfile/loading true for a bit to allow creation
           }
         }, (error) => {
           console.error("Profile fetch error:", error);
@@ -46,15 +53,14 @@ export default function App() {
           setLoading(false);
         });
 
+        // Safety timeout
         const timeout = setTimeout(() => {
-          if (fetchingProfile) {
-            setFetchingProfile(false);
-            setLoading(false);
-          }
-        }, 10000);
+          setFetchingProfile(false);
+          setLoading(false);
+        }, 8000);
 
         return () => {
-          unsubProfile();
+          if (unsubProfile) unsubProfile();
           clearTimeout(timeout);
         };
       } else {
@@ -65,7 +71,10 @@ export default function App() {
       }
     });
 
-    return unsub;
+    return () => {
+      unsub();
+      if (unsubProfile) unsubProfile();
+    };
   }, []);
 
   const handleSelectProfile = (profile: AppUser) => {
