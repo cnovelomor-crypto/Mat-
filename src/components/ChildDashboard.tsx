@@ -41,33 +41,38 @@ export default function ChildDashboard({ user, onBack }: { user: AppUser, onBack
   const handleFinishGame = async (stars: number, category: string, score: number, total: number) => {
     if (!user.uid) return;
     
-    // Update local and remote points
-    await updateDoc(doc(db, 'users', user.uid), {
-      points: increment(stars)
-    });
-
-    // Log the result
-    await addDoc(collection(db, 'exerciseResults'), {
-      childId: user.uid,
-      category,
-      score,
-      totalQuestions: total,
-      starsEarned: stars,
-      timestamp: serverTimestamp()
-    });
-
-    // Notify parent if linked
-    if (user.parentId) {
-      await addDoc(collection(db, 'notifications'), {
-        parentId: user.parentId,
-        childName: user.displayName,
-        message: `¡Logró ${score}/${total} en ${category.toUpperCase()} y ganó ${stars} estrellitas!`,
-        timestamp: serverTimestamp(),
-        read: false
+    try {
+      // Update local and remote points
+      await updateDoc(doc(db, 'users', user.uid), {
+        points: increment(stars)
       });
-    }
 
-    setGameState('lobby');
+      // Log the result
+      await addDoc(collection(db, 'exerciseResults'), {
+        childId: user.uid,
+        category,
+        score,
+        totalQuestions: total,
+        starsEarned: stars,
+        timestamp: serverTimestamp()
+      });
+
+      // Notify parent if linked
+      if (user.parentId) {
+        await addDoc(collection(db, 'notifications'), {
+          parentId: user.parentId,
+          childName: user.displayName,
+          message: `¡Logró ${score}/${total} en ${category.toUpperCase()} y ganó ${stars} estrellitas!`,
+          timestamp: serverTimestamp(),
+          read: false
+        });
+      }
+    } catch (error) {
+      console.error("Error saving game results:", error);
+      // We still want to go back to lobby even if logging fails
+    } finally {
+      setGameState('lobby');
+    }
   };
 
   return (
@@ -127,6 +132,12 @@ export default function ChildDashboard({ user, onBack }: { user: AppUser, onBack
                 <div className="flex items-center gap-4">
                   <div className="bg-yellow-400 p-2 rounded-xl text-white font-black star-pulse">⭐</div>
                   <div className="text-2xl font-black text-yellow-500">{points} <span className="text-sm uppercase tracking-wider text-slate-400">Estrellitas</span></div>
+                  
+                  {user.photoURL && (
+                    <div className="w-12 h-12 rounded-full border-4 border-blue-100 overflow-hidden ml-4">
+                      <img src={user.photoURL} alt={user.displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex items-center gap-4">
@@ -165,25 +176,25 @@ export default function ChildDashboard({ user, onBack }: { user: AppUser, onBack
           <AnimatePresence mode="wait">
             {gameState === 'lobby' && (
               <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} key="lobby" className="h-full flex flex-col gap-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
                   {/* Games Section */}
-                  <div className="bg-white rounded-3xl border-4 border-green-100 p-8 shadow-xl relative overflow-hidden flex flex-col">
+                  <div className="bg-white rounded-3xl border-4 border-green-100 p-8 shadow-xl relative overflow-hidden flex flex-col min-h-[400px]">
                     <div className="flex justify-between items-start mb-8">
                       <div>
-                        <h3 className="text-3xl font-black text-slate-700">Explorar</h3>
-                        <p className="text-slate-400 font-bold text-sm">Elige tu aventura matemática</p>
+                        <h3 className="text-2xl font-black text-slate-700">Explorar Juegos</h3>
+                        <p className="text-slate-400 font-bold text-sm">Tu aventura matemática</p>
                       </div>
-                      <span className="bg-green-100 text-green-700 font-bold px-4 py-2 rounded-full text-xs">¡Jugando se aprende!</span>
+                      <span className="hidden sm:inline-block bg-green-100 text-green-700 font-bold px-4 py-2 rounded-full text-xs uppercase tracking-widest">¡A Jugar!</span>
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-y-auto pr-2 custom-scrollbar">
                       <ExerciseCard 
                         icon="➕" 
                         label="Suma" 
                         color="blue" 
                         progress={80} 
                         onClick={() => startExercise('sumas')} 
-                        description="¡Junta números!"
+                        description="Junta números"
                       />
                       <ExerciseCard 
                         icon="➖" 
@@ -191,7 +202,7 @@ export default function ChildDashboard({ user, onBack }: { user: AppUser, onBack
                         color="orange" 
                         progress={30} 
                         onClick={() => startExercise('restas')} 
-                        description="¡Quita números!"
+                        description="Quita números"
                       />
                       <ExerciseCard 
                         icon="✖️" 
@@ -199,7 +210,7 @@ export default function ChildDashboard({ user, onBack }: { user: AppUser, onBack
                         color="purple" 
                         progress={0} 
                         onClick={() => startExercise('multiplicaciones')} 
-                        description="¡Suma rápido!"
+                        description="Suma rápido"
                       />
                       <ExerciseCard 
                         icon="➗" 
@@ -207,7 +218,7 @@ export default function ChildDashboard({ user, onBack }: { user: AppUser, onBack
                         color="blue" 
                         progress={0} 
                         onClick={() => startExercise('divisiones')} 
-                        description="¡Reparte igual!"
+                        description="Reparte igual"
                       />
                       <ExerciseCard 
                         icon="📐" 
@@ -215,22 +226,22 @@ export default function ChildDashboard({ user, onBack }: { user: AppUser, onBack
                         color="green" 
                         progress={0} 
                         onClick={() => startExercise('figuras')} 
-                        description="¡Dibuja mate!"
+                        description="Dibuja mate"
                       />
                     </div>
                   </div>
 
                   {/* Achievements Section */}
-                  <div className="bg-white rounded-3xl border-4 border-indigo-100 p-8 shadow-xl relative overflow-hidden flex flex-col">
+                  <div className="bg-white rounded-3xl border-4 border-indigo-100 p-8 shadow-xl relative overflow-hidden flex flex-col min-h-[400px]">
                     <div className="flex justify-between items-start mb-8">
                       <div>
-                        <h3 className="text-3xl font-black text-slate-700">Tus Logros</h3>
-                        <p className="text-slate-400 font-bold text-sm">Mira todo lo que has logrado</p>
+                        <h3 className="text-2xl font-black text-slate-700">Tus Logros</h3>
+                        <p className="text-slate-400 font-bold text-sm">Todo lo que has logrado</p>
                       </div>
                       <div className="bg-indigo-100 text-indigo-700 font-bold p-2 rounded-xl"><Trophy size={20} /></div>
                     </div>
 
-                    <div className="space-y-4 flex-1">
+                    <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
                       <div className="p-4 bg-indigo-50 rounded-2xl border-2 border-indigo-100 flex items-center gap-4">
                         <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-2xl">🏅</div>
                         <div className="flex-1">
@@ -244,7 +255,7 @@ export default function ChildDashboard({ user, onBack }: { user: AppUser, onBack
                       <div className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 flex items-center gap-4 opacity-70">
                         <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-2xl grayscale">👑</div>
                         <div className="flex-1">
-                          <p className="font-black text-slate-400 text-sm italic">Rey de las Restas (Cerrado)</p>
+                          <p className="font-black text-slate-400 text-sm italic">Rey de las Restas</p>
                           <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-1">Gana 50 estrellas más</p>
                         </div>
                       </div>
@@ -252,8 +263,8 @@ export default function ChildDashboard({ user, onBack }: { user: AppUser, onBack
                       <div className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 flex items-center gap-4 opacity-70">
                         <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-2xl grayscale">⚡</div>
                         <div className="flex-1">
-                          <p className="font-black text-slate-400 text-sm italic">Velocidad Máxima (Cerrado)</p>
-                          <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-1">Completa un juego sin fallos</p>
+                          <p className="font-black text-slate-400 text-sm italic">Velocidad Máxima</p>
+                          <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-1">Juego sin fallos</p>
                         </div>
                       </div>
                     </div>

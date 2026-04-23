@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Star, ShoppingBag, Send } from 'lucide-react';
-import { collection, addDoc, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc, increment, query, where, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { Reward } from '../types';
 
 const PREBUILT_REWARDS = [
   { id: 'h1', title: 'Cita de Helado 🍦', cost: 40, icon: '🍦' },
@@ -16,6 +17,18 @@ const PREBUILT_REWARDS = [
 export default function StoreView({ points, onClose, parentId, childId, childDisplayName }: { points: number, onClose: () => void, parentId: string, childId: string, childDisplayName: string }) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
+  const [customRewards, setCustomRewards] = useState<Reward[]>([]);
+
+  useEffect(() => {
+    if (!parentId) return;
+    const q = query(collection(db, 'rewards'), where('parentId', '==', parentId));
+    const unsub = onSnapshot(q, (snap) => {
+      setCustomRewards(snap.docs.map(d => ({ id: d.id, ...d.data() as Reward })));
+    });
+    return unsub;
+  }, [parentId]);
+
+  const allRewards = [...PREBUILT_REWARDS, ...customRewards];
 
   const handleRedeem = async (reward: any) => {
     if (points < reward.cost) return;
@@ -87,8 +100,11 @@ export default function StoreView({ points, onClose, parentId, childId, childDis
         </motion.div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {PREBUILT_REWARDS.map(reward => (
-            <div key={reward.id} className="bg-white p-5 rounded-3xl border-4 border-blue-50 flex flex-col h-full shadow-lg hover:shadow-xl transition-shadow cursor-default group relative overflow-hidden">
+          {allRewards.map(reward => (
+            <div key={reward.id} className={`bg-white p-5 rounded-3xl border-4 flex flex-col h-full shadow-lg hover:shadow-xl transition-shadow cursor-default group relative overflow-hidden ${reward.isCustom ? 'border-purple-100' : 'border-blue-50'}`}>
+              {reward.isCustom && (
+                <div className="absolute top-0 right-0 bg-purple-100 text-purple-700 text-[8px] font-black uppercase px-2 py-1 rounded-bl-xl tracking-widest">Especial</div>
+              )}
               <div className="flex items-center gap-4 mb-4">
                 <div className="text-5xl group-hover:scale-110 transition-transform">{reward.icon}</div>
                 <div className="flex-1 min-w-0">

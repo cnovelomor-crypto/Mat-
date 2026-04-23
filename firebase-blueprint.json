@@ -11,7 +11,8 @@
         "role": { "type": "string", "enum": ["parent", "child"] },
         "parentId": { "type": "string", "description": "The UID of the parent if this user is a child profile." },
         "points": { "type": "integer", "description": "Total magic stars collected by the child." },
-        "linkingCode": { "type": "string", "description": "Temporary code to link a child profile to a parent." }
+        "linkingCode": { "type": "string", "description": "Temporary code to link a child profile to a parent." },
+        "photoURL": { "type": "string", "description": "URL to the user's profile photo." }
       },
       "required": ["uid", "role", "displayName"]
     },

@@ -57,8 +57,8 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidUser(incoming()) && (request.auth.uid == userId || incoming().get('parentId', '') == request.auth.uid);
       
       allow update: if isSignedIn() && (
-        (request.auth.uid == userId && isValidUser(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'points', 'parentId', 'linkingCode'])) ||
-        (existing().get('parentId', '') == request.auth.uid && isValidUser(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['points', 'parentId', 'displayName']))
+        (request.auth.uid == userId && isValidUser(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'points', 'parentId', 'linkingCode', 'photoURL'])) ||
+        (existing().get('parentId', '') == request.auth.uid && isValidUser(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['points', 'parentId', 'displayName', 'photoURL']))
       );
     }
 

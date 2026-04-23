@@ -10,6 +10,7 @@ export interface AppUser {
   phone?: string;
   parentPhone?: string;
   linkingCode?: string;
+  photoURL?: string;
 }
 
 export interface ExerciseResult {

@@ -110,7 +110,7 @@ export default function App() {
     <AnimatePresence mode="wait">
       {selectedProfile.role === 'parent' ? (
         <motion.div key="parent" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
-          <ParentDashboard onSwitchProfile={handleBackToProfiles} />
+          <ParentDashboard user={user!} onSwitchProfile={handleBackToProfiles} />
         </motion.div>
       ) : (
         <motion.div key="child" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
@@ -144,8 +144,12 @@ function ProfileSelection({ parent, onSelect }: { parent: AppUser, onSelect: (u:
           onClick={() => onSelect(parent)}
           className="flex flex-col items-center gap-4 bg-white p-8 rounded-[3rem] border-8 border-blue-100 shadow-xl"
         >
-          <div className="w-24 h-24 bg-blue-500 rounded-full flex items-center justify-center text-white text-4xl shadow-inner border-4 border-white">
-            👨‍🏫
+          <div className="w-24 h-24 bg-blue-500 rounded-full flex items-center justify-center text-white text-4xl shadow-inner border-4 border-white overflow-hidden">
+            {parent.photoURL ? (
+              <img src={parent.photoURL} alt="Papá/Mamá" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            ) : (
+              "👨‍🏫"
+            )}
           </div>
           <span className="font-black text-slate-700 text-xl">Papá/Mamá</span>
           <span className="text-xs font-bold text-blue-400 uppercase tracking-widest leading-none">Panel Pro</span>
@@ -160,8 +164,12 @@ function ProfileSelection({ parent, onSelect }: { parent: AppUser, onSelect: (u:
             onClick={() => onSelect(child)}
             className="flex flex-col items-center gap-4 bg-white p-8 rounded-[3rem] border-8 border-orange-100 shadow-xl"
           >
-            <div className="w-24 h-24 bg-orange-400 rounded-full flex items-center justify-center text-white text-4xl shadow-inner border-4 border-white">
-              {child.displayName[0].toUpperCase()}
+            <div className="w-24 h-24 bg-orange-400 rounded-full flex items-center justify-center text-white text-4xl shadow-inner border-4 border-white overflow-hidden">
+              {child.photoURL ? (
+                <img src={child.photoURL} alt={child.displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                child.displayName[0].toUpperCase()
+              )}
             </div>
             <span className="font-black text-slate-700 text-xl">{child.displayName}</span>
             <span className="text-xs font-bold text-orange-400 uppercase tracking-widest leading-none">Explorador</span>
