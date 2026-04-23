@@ -19,12 +19,8 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function getUserData(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data;
-    }
-
-    function isParentOf(childId) {
-      return isSignedIn() && getUserData(childId).parentId == request.auth.uid;
+    function isParentOf(childData) {
+      return isSignedIn() && childData.parentId == request.auth.uid;
     }
 
     function isValidId(id) {
@@ -42,84 +38,92 @@ service cloud.firestore {
     // --- User Rules ---
     match /users/{userId} {
       function isValidUser(data) {
-        return data.uid == request.auth.uid 
-          && data.role in ['parent', 'child']
+        return data.role in ['parent', 'child']
           && data.displayName is string && data.displayName.size() <= 60
-          && (data.role == 'parent' || data.parentId == null || (data.parentId is string && isValidId(data.parentId)))
+          && (data.role == 'parent' ? data.uid == request.auth.uid : (data.parentId == request.auth.uid))
           && (data.keys().hasAll(['uid', 'role', 'displayName']) && data.keys().size() <= 8);
       }
 
-      allow get: if isOwner(userId) || isParentOf(userId);
-      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || resource.data.parentId == request.auth.uid);
+      allow get: if isSignedIn() && (
+        request.auth.uid == userId || 
+        (resource != null && resource.data.get('parentId', '') == request.auth.uid)
+      );
+      allow list: if isSignedIn() && (
+        resource.data.get('uid', '') == request.auth.uid || 
+        resource.data.get('parentId', '') == request.auth.uid
+      );
       
-      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow create: if isSignedIn() && isValidUser(incoming()) && (request.auth.uid == userId || incoming().get('parentId', '') == request.auth.uid);
       
-      allow update: if isOwner(userId) && isValidUser(incoming()) && (
-        // Children can update points ONLY via transactional increments (hard to enforce strictly without functions, but we restrict fields)
-        // For this demo, we allow specific fields
-        (incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'points', 'parentId', 'linkingCode']))
-      ) || (
-        // Parents can update child profiles (e.g. points, or assigning them)
-        isParentOf(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['points', 'parentId'])
+      allow update: if isSignedIn() && (
+        (request.auth.uid == userId && isValidUser(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'points', 'parentId', 'linkingCode'])) ||
+        (existing().get('parentId', '') == request.auth.uid && isValidUser(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['points', 'parentId', 'displayName']))
       );
     }
 
     // --- Exercise Results ---
     match /exerciseResults/{resultId} {
       function isValidResult(data) {
-        return data.childId == request.auth.uid
-          && data.category in ['sumas', 'restas', 'multiplicaciones', 'divisiones', 'figuras']
-          && data.score is int && data.score >= 0
-          && data.starsEarned is int && data.starsEarned >= 0
-          && data.timestamp == request.time
+        return data.get('childId', '') is string && isValidId(data.get('childId', ''))
+          && data.get('category', '') in ['sumas', 'restas', 'multiplicaciones', 'divisiones', 'figuras']
+          && data.get('score', 0) is int && data.get('score', 0) >= 0
+          && data.get('starsEarned', 0) is int && data.get('starsEarned', 0) >= 0
+          && data.get('timestamp', request.time) == request.time
           && data.keys().hasAll(['childId', 'category', 'score', 'totalQuestions', 'starsEarned', 'timestamp']);
       }
 
-      allow read: if isOwner(existing().childId) || isParentOf(existing().childId);
-      allow create: if isSignedIn() && isValidResult(incoming());
+      function canAccessResult(childId) {
+        let childDoc = get(/databases/$(database)/documents/users/$(childId)).data;
+        return childId == request.auth.uid || childDoc.get('parentId', '') == request.auth.uid;
+      }
+
+      allow read: if isSignedIn() && canAccessResult(resource.data.get('childId', ''));
+      allow create: if isSignedIn() && isValidResult(incoming()) && canAccessResult(incoming().get('childId', ''));
     }
 
     // --- Rewards ---
     match /rewards/{rewardId} {
       function isValidReward(data) {
-        return data.title is string && data.title.size() <= 100
-          && data.cost is int && data.cost >= 0
-          && data.icon is string
-          && (data.isCustom == false || (data.parentId == request.auth.uid))
+        return data.get('title', '') is string && data.get('title', '').size() <= 100
+          && data.get('cost', 0) is int && data.get('cost', 0) >= 0
+          && data.get('icon', '') is string
+          && (data.get('isCustom', false) == false || (data.get('parentId', '') == request.auth.uid))
           && data.keys().hasAll(['title', 'cost', 'icon']);
       }
 
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidReward(incoming()) && (incoming().isCustom == true ? getUserData(request.auth.uid).role == 'parent' : false);
-      allow update, delete: if isSignedIn() && existing().parentId == request.auth.uid;
+      allow create: if isSignedIn() && isValidReward(incoming()) && (incoming().get('isCustom', false) == true ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'parent' : false);
+      allow update, delete: if isSignedIn() && resource.data.get('parentId', '') == request.auth.uid;
     }
 
     // --- Redemptions ---
     match /redemptions/{redemptionId} {
       function isValidRedemption(data) {
-        return data.childId == request.auth.uid
-          && data.status == 'pending'
-          && data.timestamp == request.time
-          && data.parentId is string
+        return data.get('childId', '') == request.auth.uid
+          && data.get('status', '') == 'pending'
+          && data.get('timestamp', request.time) == request.time
+          && data.get('parentId', '') is string
           && data.keys().hasAll(['childId', 'rewardId', 'rewardTitle', 'status', 'timestamp', 'parentId']);
       }
 
-      allow read: if isOwner(existing().childId) || isParentOf(existing().childId);
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.get('childId', '') || 
+        resource.data.get('parentId', '') == request.auth.uid
+      );
       
       allow create: if isSignedIn() && isValidRedemption(incoming());
       
-      allow update: if (
-        // Parent completes the redemption
-        isParentOf(existing().childId) && 
+      allow update: if isSignedIn() && (
+        resource.data.get('parentId', '') == request.auth.uid && 
         incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
-        incoming().status == 'completed'
+        incoming().get('status', '') == 'completed'
       );
     }
 
     // --- Notifications ---
     match /notifications/{notificationId} {
-      allow read: if isOwner(existing().parentId);
-      allow update: if isOwner(existing().parentId) && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow read: if isSignedIn() && resource.data.get('parentId', '') == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.get('parentId', '') == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
       // Creation usually happens via client side when child finishes exercise
       allow create: if isSignedIn(); // We could harden this to check child relationship
     }

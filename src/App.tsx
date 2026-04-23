@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import { AppUser } from './types';
 import AuthView from './components/AuthView';
@@ -11,6 +11,7 @@ import Mascot from './components/Mascot';
 
 export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
+  const [selectedProfile, setSelectedProfile] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchingProfile, setFetchingProfile] = useState(false);
 
@@ -19,16 +20,25 @@ export default function App() {
       setLoading(true);
       if (firebaseUser) {
         setFetchingProfile(true);
-        // Set up a listener for the user document
+        // Set up a listener for the parent user document
         const unsubProfile = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
           if (docSnap.exists()) {
-            setUser(docSnap.data() as AppUser);
+            const data = docSnap.data();
+            const parentData: AppUser = {
+              uid: data.uid || firebaseUser.uid,
+              email: data.email || firebaseUser.email || '',
+              displayName: data.displayName || 'Padre/Madre',
+              role: data.role || 'parent',
+              points: data.points || 0,
+              parentId: data.parentId || null,
+              linkingCode: data.linkingCode || null
+            };
+            setUser(parentData);
             setFetchingProfile(false);
             setLoading(false);
           } else {
-            // Still waiting for profile creation
-            setUser(null);
-            // We don't set loading to false yet, we wait for the doc
+            // Handle profile not found - maybe user is still being created
+            console.log("Profile not found yet, waiting...");
           }
         }, (error) => {
           console.error("Profile fetch error:", error);
@@ -36,7 +46,6 @@ export default function App() {
           setLoading(false);
         });
 
-        // Fail-safe: if after 10 seconds we don't have a profile, let the user know or show auth
         const timeout = setTimeout(() => {
           if (fetchingProfile) {
             setFetchingProfile(false);
@@ -50,6 +59,7 @@ export default function App() {
         };
       } else {
         setUser(null);
+        setSelectedProfile(null);
         setFetchingProfile(false);
         setLoading(false);
       }
@@ -57,6 +67,14 @@ export default function App() {
 
     return unsub;
   }, []);
+
+  const handleSelectProfile = (profile: AppUser) => {
+    setSelectedProfile(profile);
+  };
+
+  const handleBackToProfiles = () => {
+    setSelectedProfile(null);
+  };
 
   if (loading || fetchingProfile) {
     return (
@@ -73,21 +91,88 @@ export default function App() {
     );
   }
 
+  if (!user) return <AuthView />;
+
+  if (!selectedProfile) {
+    return <ProfileSelection parent={user} onSelect={handleSelectProfile} />;
+  }
+
   return (
     <AnimatePresence mode="wait">
-      {!user ? (
-        <motion.div key="auth" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <AuthView />
-        </motion.div>
-      ) : user.role === 'parent' ? (
-        <motion.div key="parent" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <ParentDashboard />
+      {selectedProfile.role === 'parent' ? (
+        <motion.div key="parent" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
+          <ParentDashboard onSwitchProfile={handleBackToProfiles} />
         </motion.div>
       ) : (
-        <motion.div key="child" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <ChildDashboard user={user} />
+        <motion.div key="child" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
+          <ChildDashboard user={selectedProfile} onBack={handleBackToProfiles} />
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+function ProfileSelection({ parent, onSelect }: { parent: AppUser, onSelect: (u: AppUser) => void }) {
+  const [profiles, setProfiles] = useState<AppUser[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'users'), where('parentId', '==', parent.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      setProfiles(snap.docs.map(d => d.data() as AppUser));
+    });
+    return unsub;
+  }, [parent.uid]);
+
+  return (
+    <div className="min-h-screen bg-yellow-50 flex flex-col items-center justify-center p-6">
+      <Mascot message="¿Quién va a usar Matemágicas hoy?" />
+      
+      <div className="mt-12 grid grid-cols-2 md:grid-cols-3 gap-8 max-w-4xl w-full">
+        {/* Parent Profile */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => onSelect(parent)}
+          className="flex flex-col items-center gap-4 bg-white p-8 rounded-[3rem] border-8 border-blue-100 shadow-xl"
+        >
+          <div className="w-24 h-24 bg-blue-500 rounded-full flex items-center justify-center text-white text-4xl shadow-inner border-4 border-white">
+            👨‍🏫
+          </div>
+          <span className="font-black text-slate-700 text-xl">Papá/Mamá</span>
+          <span className="text-xs font-bold text-blue-400 uppercase tracking-widest leading-none">Panel Pro</span>
+        </motion.button>
+
+        {/* Child Profiles */}
+        {profiles.map(child => (
+          <motion.button
+            key={child.uid}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onSelect(child)}
+            className="flex flex-col items-center gap-4 bg-white p-8 rounded-[3rem] border-8 border-orange-100 shadow-xl"
+          >
+            <div className="w-24 h-24 bg-orange-400 rounded-full flex items-center justify-center text-white text-4xl shadow-inner border-4 border-white">
+              {child.displayName[0].toUpperCase()}
+            </div>
+            <span className="font-black text-slate-700 text-xl">{child.displayName}</span>
+            <span className="text-xs font-bold text-orange-400 uppercase tracking-widest leading-none">Explorador</span>
+          </motion.button>
+        ))}
+
+        {/* Add Profile Placeholder if fewer kids */}
+        {profiles.length === 0 && (
+          <div className="flex flex-col items-center justify-center p-8 border-4 border-dashed border-slate-200 rounded-[3rem] opacity-50">
+            <p className="font-bold text-slate-400 text-center text-sm">Entra al Panel Pro para añadir a tus hijos</p>
+          </div>
+        )}
+      </div>
+
+      <button 
+        onClick={() => auth.signOut()}
+        className="mt-12 text-slate-400 font-bold hover:text-slate-600 transition-colors flex items-center gap-2"
+      >
+        Cerrar Sesión 👋
+      </button>
+    </div>
   );
 }

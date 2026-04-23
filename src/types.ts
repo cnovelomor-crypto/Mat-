@@ -7,6 +7,8 @@ export interface AppUser {
   role: UserRole;
   parentId?: string;
   points?: number;
+  phone?: string;
+  parentPhone?: string;
   linkingCode?: string;
 }
 

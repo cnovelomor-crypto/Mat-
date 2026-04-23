@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, doc, updateDoc, addDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, addDoc, getDocs, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { AppUser, ParentNotification, Redemption, Reward } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Users, Gift, Bell, CheckCircle, TrendingUp, LogOut } from 'lucide-react';
 import Mascot from './Mascot';
 
-export default function ParentDashboard() {
+export default function ParentDashboard({ onSwitchProfile }: { onSwitchProfile: () => void }) {
   const [children, setChildren] = useState<AppUser[]>([]);
   const [notifications, setNotifications] = useState<ParentNotification[]>([]);
   const [redemptions, setRedemptions] = useState<Redemption[]>([]);
@@ -22,19 +22,19 @@ export default function ParentDashboard() {
     const qChildren = query(collection(db, 'users'), where('parentId', '==', auth.currentUser.uid));
     const unsubChildren = onSnapshot(qChildren, (snapshot) => {
       setChildren(snapshot.docs.map(d => ({ ...d.data() as AppUser })));
-    });
+    }, (err) => console.warn("Parent children listener error:", err));
 
     // Listen for notifications
     const qNotifs = query(collection(db, 'notifications'), where('parentId', '==', auth.currentUser.uid));
     const unsubNotifs = onSnapshot(qNotifs, (snapshot) => {
       setNotifications(snapshot.docs.map(d => ({ id: d.id, ...d.data() as ParentNotification })).sort((a, b) => b.timestamp - a.timestamp));
-    });
+    }, (err) => console.warn("Parent notifications listener error:", err));
 
     // Listen for redemptions
     const qRedemptions = query(collection(db, 'redemptions'), where('parentId', '==', auth.currentUser.uid), where('status', '==', 'pending'));
     const unsubRedemptions = onSnapshot(qRedemptions, (snapshot) => {
       setRedemptions(snapshot.docs.map(d => ({ id: d.id, ...d.data() as Redemption })));
-    });
+    }, (err) => console.warn("Parent redemptions listener error:", err));
 
     return () => {
       unsubChildren();
@@ -43,23 +43,33 @@ export default function ParentDashboard() {
     };
   }, []);
 
-  const linkChild = async () => {
-    if (!childCode.trim() || !auth.currentUser) return;
-    setError('');
+  const confirmLink = async (childId: string) => {
     try {
-      const q = query(collection(db, 'users'), where('linkingCode', '==', childCode.trim()));
-      const snap = await getDocs(q);
-      if (snap.empty) {
-        setError('Código no encontrado. Verifica con tu hijo.');
-        return;
-      }
-      const childDoc = snap.docs[0];
-      await updateDoc(doc(db, 'users', childDoc.id), {
+      await updateDoc(doc(db, 'users', childId), {
+        parentId: auth.currentUser!.uid
+      });
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const createChild = async (name: string) => {
+    if (!auth.currentUser) return;
+    try {
+      const childrenRef = collection(db, 'users');
+      const newChildDoc = doc(childrenRef);
+      const childId = newChildDoc.id;
+      
+      await setDoc(newChildDoc, {
+        uid: childId,
+        displayName: name,
+        role: 'child',
         parentId: auth.currentUser.uid,
-        linkingCode: null // Consume code
+        points: 0,
+        email: null,
+        createdAt: new Date().toISOString()
       });
       setShowAddChild(false);
-      setChildCode('');
     } catch (err: any) {
       setError(err.message);
     }
@@ -105,54 +115,71 @@ export default function ParentDashboard() {
           >
             <LogOut size={20} /> Salir
           </button>
+
+          <button 
+            onClick={onSwitchProfile}
+            className="w-full text-center mt-4 text-xs font-bold text-slate-400 hover:text-primary transition-colors"
+          >
+            👤 Cambiar Perfil
+          </button>
         </nav>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col gap-6 p-6 overflow-y-auto custom-scrollbar">
-        <header className="min-h-20 bg-white rounded-3xl border-4 border-blue-100 px-8 py-4 flex flex-col md:flex-row items-center justify-between shadow-lg gap-4">
-          <div>
-            <h1 className="text-2xl font-black text-slate-700">Dashboard Parental</h1>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Estado del Reino</p>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setShowAddChild(true)}
-              className="bg-primary hover:bg-yellow-400 text-white px-6 py-2 rounded-2xl border-b-4 border-yellow-600 font-bold flex items-center gap-2 transition-all"
-            >
-              <Plus size={20} /> Vincular Hijo
-            </button>
-          </div>
-        </header>
+      <main className="flex-1 flex flex-col overflow-y-auto custom-scrollbar">
+        <div className="flex-1 flex flex-col gap-6 p-6 w-full max-w-7xl mx-auto">
+          <header className="min-h-20 bg-white rounded-3xl border-4 border-blue-100 px-8 py-4 flex flex-col md:flex-row items-center justify-between shadow-lg gap-4">
+            <div>
+              <h1 className="text-2xl font-black text-slate-700">Dashboard Parental</h1>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Estado del Reino</p>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setShowAddChild(true)}
+                className="bg-primary text-white font-black px-6 py-2 rounded-xl kid-button border-yellow-600 text-sm hover:bg-yellow-400 transition-colors"
+              >
+                + Añadir Hijo
+              </button>
+              <button 
+                onClick={() => setActiveTab('overview')}
+                className="bg-slate-100 font-bold px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-200 transition-colors"
+              >
+                Principal
+              </button>
+            </div>
+          </header>
 
-        <div className="flex-1">
-          <AnimatePresence mode="wait">
-            {activeTab === 'overview' && (
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} key="overview" className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Children List */}
-                  <div className="lg:col-span-2 bg-white rounded-3xl border-4 border-blue-50 p-8 shadow-xl">
-                    <h3 className="text-xl font-black text-slate-700 mb-6 underline decoration-primary decoration-4">Mis Matemágicos</h3>
-                    {children.length === 0 ? (
-                      <div className="text-center py-12 opacity-50 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-                        <p className="font-bold text-slate-400">Aún no hay hijos vinculados.</p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {children.map(child => (
-                          <div key={child.uid} className="bg-blue-50/50 p-4 rounded-2xl border-2 border-blue-100 flex items-center gap-4 hover:bg-blue-50 transition-colors">
-                            <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center text-white text-xl font-black shadow-md">
-                              {child.displayName[0].toUpperCase()}
+          <div className="flex-1">
+            <AnimatePresence mode="wait">
+              {activeTab === 'overview' && (
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} key="overview" className="space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Children List */}
+                    <div className="space-y-6">
+                    <div className="bg-white rounded-3xl border-4 border-blue-50 p-8 shadow-xl">
+                      <h3 className="text-xl font-black text-slate-700 mb-6 underline decoration-primary decoration-4">Mis Matemágicos</h3>
+                      {children.length === 0 ? (
+                        <div className="text-center py-12 opacity-50 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                          <p className="font-bold text-slate-400">Aún no has añadido perfiles para tus hijos.</p>
+                          <button onClick={() => setShowAddChild(true)} className="text-primary mt-2 hover:underline">Haz clic aquí para empezar</button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {children.map(child => (
+                            <div key={child.uid} className="bg-blue-50/50 p-4 rounded-2xl border-2 border-blue-100 flex items-center gap-4 hover:bg-blue-50 transition-colors">
+                              <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center text-white text-xl font-black shadow-md">
+                                {child.displayName[0].toUpperCase()}
+                              </div>
+                              <div>
+                                <h4 className="font-black text-slate-700">{child.displayName}</h4>
+                                <p className="text-sm font-bold text-yellow-500">⭐ {child.points} Estrellitas</p>
+                              </div>
                             </div>
-                            <div>
-                              <h4 className="font-black text-slate-700">{child.displayName}</h4>
-                              <p className="text-sm font-bold text-yellow-500">⭐ {child.points} Estrellitas</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Pending Rewards */}
@@ -243,38 +270,36 @@ export default function ParentDashboard() {
             )}
           </AnimatePresence>
         </div>
-      </main>
+      </div>
+    </main>
 
-      {/* Add Child Modal */}
-      <AnimatePresence>
+    <AnimatePresence>
         {showAddChild && (
           <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-50 backdrop-blur-md">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-[2.5rem] border-8 border-blue-100 p-8 w-full max-w-sm shadow-2xl relative overflow-hidden">
               <div className="text-center relative z-10">
-                <h3 className="text-3xl font-black text-slate-700 mb-2">Vincular Hijo</h3>
-                <p className="text-slate-400 font-bold mb-8 text-sm">Pídele su "Código de Héroe" de 6 letras.</p>
+                <h3 className="text-3xl font-black text-slate-700 mb-2">Nuevo Hijo</h3>
+                <p className="text-slate-400 font-bold mb-8 text-sm">Escribe el nombre de tu peque para empezar su aventura.</p>
                 
                 <input 
                   type="text"
-                  placeholder="ABCDEF"
-                  maxLength={6}
-                  value={childCode}
-                  onChange={e => setChildCode(e.target.value.toUpperCase())}
-                  className="w-full p-4 mb-4 text-center text-4xl font-black rounded-2xl border-4 border-slate-100 focus:border-primary outline-none uppercase tracking-[0.2em] shadow-inner bg-slate-50"
+                  placeholder="Ej: Juanito"
+                  value={childCode} // Reusing childCode state for name for simplicity
+                  onChange={e => setChildCode(e.target.value)}
+                  className="w-full p-4 mb-4 text-center text-4xl font-black rounded-2xl border-4 border-slate-100 focus:border-primary outline-none shadow-inner bg-slate-50"
                 />
                 
                 {error && <p className="bg-red-50 text-soft-red p-3 rounded-xl mb-4 text-xs font-bold border border-red-100">{error}</p>}
                 
                 <div className="space-y-3">
-                  <button onClick={linkChild} className="w-full p-4 bg-primary text-white font-black rounded-2xl kid-button border-yellow-600 text-lg hover:bg-yellow-400 transition-colors uppercase">
-                    Confirmar
+                  <button onClick={() => createChild(childCode)} className="w-full p-4 bg-primary text-white font-black rounded-2xl kid-button border-yellow-600 text-lg hover:bg-yellow-400 transition-colors uppercase">
+                    Crear Perfil
                   </button>
                   <button onClick={() => setShowAddChild(false)} className="w-full p-3 text-slate-400 font-black text-sm uppercase tracking-widest hover:text-slate-600 transition-colors">
-                    Volver
+                    Cancelar
                   </button>
                 </div>
               </div>
-              <div className="absolute top-0 right-0 p-4 opacity-5 text-6xl">🔗</div>
             </motion.div>
           </div>
         )}

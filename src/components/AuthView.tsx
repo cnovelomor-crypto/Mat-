@@ -1,17 +1,18 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../lib/firebase';
 import Mascot from './Mascot';
 import { motion } from 'motion/react';
 import { LogIn, UserPlus } from 'lucide-react';
+import { AppUser } from '../types';
 
 export default function AuthView() {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<'parent' | 'child'>('parent');
+  const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -22,14 +23,15 @@ export default function AuthView() {
     try {
       if (isRegister) {
         const { user } = await createUserWithEmailAndPassword(auth, email, password);
-        await setDoc(doc(db, 'users', user.uid), {
+        const userData: AppUser = {
           uid: user.uid,
           email: user.email,
           displayName: name,
-          role: role,
-          points: role === 'child' ? 0 : null,
-          createdAt: new Date().toISOString()
-        });
+          role: 'parent',
+          phone: phone,
+        };
+
+        await setDoc(doc(db, 'users', user.uid), userData);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
@@ -112,21 +114,16 @@ export default function AuthView() {
           </div>
 
           {isRegister && (
-            <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={() => setRole('parent')}
-                className={`flex-1 p-3 rounded-xl border-2 font-bold transition-all ${role === 'parent' ? 'bg-secondary border-blue-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-400'}`}
-              >
-                Soy Padre
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('child')}
-                className={`flex-1 p-3 rounded-xl border-2 font-bold transition-all ${role === 'child' ? 'bg-accent border-orange-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-400'}`}
-              >
-                Soy Niño
-              </button>
+            <div>
+              <label className="block text-sm font-bold mb-1 text-slate-500">Tu Teléfono (para avisos 📱)</label>
+              <input 
+                type="tel" 
+                required 
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                className="w-full p-3 rounded-xl border-2 border-slate-100 focus:border-primary outline-none transition-colors bg-slate-50 font-bold"
+                placeholder="Ej: +52 5512345678"
+              />
             </div>
           )}
 

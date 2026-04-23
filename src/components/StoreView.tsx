@@ -13,24 +13,24 @@ const PREBUILT_REWARDS = [
   { id: 'h6', title: 'Hacer manualidades juntos 🎨', cost: 35, icon: '🎨' },
 ];
 
-export default function StoreView({ points, onClose, parentId }: { points: number, onClose: () => void, parentId: string }) {
+export default function StoreView({ points, onClose, parentId, childId, childDisplayName }: { points: number, onClose: () => void, parentId: string, childId: string, childDisplayName: string }) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
 
   const handleRedeem = async (reward: any) => {
     if (points < reward.cost) return;
-    if (!auth.currentUser) return;
+    if (!childId) return;
     
     setLoading(true);
     try {
       // 1. Subtract points
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+      await updateDoc(doc(db, 'users', childId), {
         points: increment(-reward.cost)
       });
 
       // 2. Create redemption record
       await addDoc(collection(db, 'redemptions'), {
-        childId: auth.currentUser.uid,
+        childId: childId,
         rewardId: reward.id,
         rewardTitle: reward.title,
         status: 'pending',
@@ -42,7 +42,7 @@ export default function StoreView({ points, onClose, parentId }: { points: numbe
       if (parentId) {
         await addDoc(collection(db, 'notifications'), {
           parentId: parentId,
-          childName: auth.currentUser.displayName || 'Hijo',
+          childName: childDisplayName || 'Hijo',
           message: `🎁 ¡Tienes un regalo pendiente! Canjeó el cupón: '${reward.title}'.`,
           timestamp: serverTimestamp(),
           read: false

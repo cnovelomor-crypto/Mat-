@@ -13,7 +13,8 @@ export default function ExerciseGame({ category, onFinish, onCancel }: GameProps
   const [step, setStep] = useState<'tutorial' | 'playing' | 'result'>('tutorial');
   const [questionIndex, setQuestionIndex] = useState(0);
   const [questions, setQuestions] = useState<any[]>([]);
-  const [answers, setAnswers] = useState<boolean[]>([]);
+  const [attempts, setAttempts] = useState<number[]>([]); // Tracks attempts per question
+  const [correctOnFirstTry, setCorrectOnFirstTry] = useState<boolean[]>([]);
   const [shake, setShake] = useState(false);
   const [showFeedback, setShowFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [lastCorrect, setLastCorrect] = useState(false);
@@ -22,6 +23,8 @@ export default function ExerciseGame({ category, onFinish, onCancel }: GameProps
 
   useEffect(() => {
     generateQuestions();
+    setAttempts(new Array(totalQuestions).fill(0));
+    setCorrectOnFirstTry(new Array(totalQuestions).fill(false));
   }, [category]);
 
   const generateQuestions = () => {
@@ -29,20 +32,38 @@ export default function ExerciseGame({ category, onFinish, onCancel }: GameProps
     for (let i = 0; i < totalQuestions; i++) {
       let q, a, options;
       if (category === 'sumas') {
-        const n1 = Math.floor(Math.random() * 10) + 1;
-        const n2 = Math.floor(Math.random() * 10) + 1;
+        const n1 = Math.floor(Math.random() * 20) + 1;
+        const n2 = Math.floor(Math.random() * 20) + 1;
         q = `${n1} + ${n2}`;
         a = n1 + n2;
       } else if (category === 'restas') {
-        const n1 = Math.floor(Math.random() * 15) + 5;
-        const n2 = Math.floor(Math.random() * n1);
+        const n1 = Math.floor(Math.random() * 30) + 10;
+        const n2 = Math.floor(Math.random() * (n1 - 1)) + 1;
         q = `${n1} - ${n2}`;
         a = n1 - n2;
       } else if (category === 'multiplicaciones') {
-        const n1 = Math.floor(Math.random() * 5) + 1;
+        const n1 = Math.floor(Math.random() * 9) + 1;
         const n2 = Math.floor(Math.random() * 10) + 1;
         q = `${n1} x ${n2}`;
         a = n1 * n2;
+      } else if (category === 'divisiones') {
+        const n2 = Math.floor(Math.random() * 9) + 2; // Divisor 2-10
+        const a_val = Math.floor(Math.random() * 9) + 1; // Result 1-9
+        const n1 = n2 * a_val; // Dividend
+        q = `${n1} ÷ ${n2}`;
+        a = a_val;
+      } else if (category === 'figuras') {
+        const shapes = [
+          { name: 'Triángulo', sides: 3 },
+          { name: 'Cuadrado', sides: 4 },
+          { name: 'Pentágono', sides: 5 },
+          { name: 'Hexágono', sides: 6 },
+          { name: 'Círculo', sides: 0 },
+          { name: 'Rectángulo', sides: 4 }
+        ];
+        const shape = shapes[Math.floor(Math.random() * shapes.length)];
+        q = `¿Cuántos lados tiene un ${shape.name}?`;
+        a = shape.sides;
       } else {
         q = "2 + 2";
         a = 4;
@@ -51,7 +72,16 @@ export default function ExerciseGame({ category, onFinish, onCancel }: GameProps
       // Generate options
       const optSet = new Set([a]);
       while (optSet.size < 4) {
-        optSet.add(a + (Math.floor(Math.random() * 10) - 5));
+        let noise;
+        if (a === 0) noise = Math.floor(Math.random() * 5) + 1;
+        else noise = Math.floor(Math.random() * (a > 5 ? 10 : 6)) - (a > 5 ? 5 : 2);
+        
+        const opt = a + noise;
+        if (opt >= 0 && opt !== a) {
+          optSet.add(opt);
+        } else if (optSet.size < 4) {
+          optSet.add(a + optSet.size + 1);
+        }
       }
       options = Array.from(optSet).sort(() => Math.random() - 0.5);
       newQs.push({ q, a, options });
@@ -60,13 +90,22 @@ export default function ExerciseGame({ category, onFinish, onCancel }: GameProps
   };
 
   const checkAnswer = (selected: number) => {
-    const correct = selected === questions[questionIndex].a;
-    setLastCorrect(correct);
-    setShowFeedback(correct ? 'correct' : 'wrong');
+    const isCorrect = selected === questions[questionIndex].a;
+    const currentAttempts = [...attempts];
+    currentAttempts[questionIndex] += 1;
+    setAttempts(currentAttempts);
+
+    if (isCorrect && currentAttempts[questionIndex] === 1) {
+      const firstTry = [...correctOnFirstTry];
+      firstTry[questionIndex] = true;
+      setCorrectOnFirstTry(firstTry);
+    }
+
+    setLastCorrect(isCorrect);
+    setShowFeedback(isCorrect ? 'correct' : 'wrong');
     
-    if (correct) {
+    if (isCorrect) {
       setTimeout(() => {
-        setAnswers([...answers, true]);
         if (questionIndex + 1 < totalQuestions) {
           setQuestionIndex(v => v + 1);
           setShowFeedback('none');
@@ -85,9 +124,11 @@ export default function ExerciseGame({ category, onFinish, onCancel }: GameProps
 
   const getTutorial = () => {
     switch (category) {
-      case 'sumas': return "Sumar es como juntar juguetes. Si tienes 2 y te dan 1 más, ¡ahora tienes 3!";
-      case 'restas': return "Restar es como comerse galletas. Si tienes 5 y te comes 2, ¡solo quedan 3!";
-      case 'multiplicaciones': return "Multiplicar es sumar muchas veces rápido. ¡Es súper poderoso!";
+      case 'sumas': return "Sumar es como juntar juguetes. ¡A ver cuántos tienes en total!";
+      case 'restas': return "Restar es como quitar caramelos de una bolsa. ¡Cuenta los que quedan!";
+      case 'multiplicaciones': return "Multiplicar es sumar el mismo número varias veces rápido. ¡Poder matemático!";
+      case 'divisiones': return "Dividir es repartir en partes iguales. ¡Como repartir pizza con amigos!";
+      case 'figuras': return "Las figuras tienen lados. ¡Cuenta las líneas que forman cada forma!";
       default: return "¡Vamos a aprender matemáticas jugando!";
     }
   };
@@ -98,36 +139,38 @@ export default function ExerciseGame({ category, onFinish, onCancel }: GameProps
         <Mascot message={getTutorial()} expression="happy" />
         <div className="bg-white p-8 rounded-[2.5rem] border-4 border-blue-50 shadow-xl max-w-sm text-center relative overflow-hidden">
           <h3 className="text-3xl font-black mb-4 flex items-center justify-center gap-2 text-slate-700">
-            <Info className="text-secondary" /> ¡HOLA!
+            <Info className="text-secondary" /> Misión {category.toUpperCase()}
           </h3>
-          <p className="text-slate-500 mb-8 font-bold leading-tight">Observa bien el ejemplo de arriba y cuando estés listo presiona el botón.</p>
+          <p className="text-slate-500 mb-8 font-bold leading-tight">Observa bien la pregunta y elige la respuesta correcta para ganar muchas estrellas.</p>
           <button 
             onClick={() => setStep('playing')}
-            className="w-full bg-success text-white font-black p-5 rounded-2xl border-b-4 border-green-700 text-xl hover:bg-green-400 transition-colors uppercase tracking-widest active:translate-y-1 active:border-b-0"
+            className="w-full bg-success text-white font-black p-5 rounded-2xl border-b-4 border-green-700 text-xl hover:bg-green-400 transition-colors uppercase tracking-widest active:translate-y-1 active:border-b-0 shadow-lg"
           >
-            ¡Empezar!
+            ¡Empezar Misión!
           </button>
-          <div className="absolute top-0 right-0 p-2 opacity-5 text-4xl">📚</div>
+          <div className="absolute top-0 right-0 p-2 opacity-5 text-4xl">🚀</div>
         </div>
       </div>
     );
   }
 
   if (step === 'result') {
-    const correctCount = answers.length;
-    const stars = correctCount * 5; // 25 stars max
+    const firstTryCount = correctOnFirstTry.filter(v => v).length;
+    const score = firstTryCount;
+    const stars = score * 5; // Max 25 stars for 5/5
     return (
       <div className="flex flex-col items-center gap-8 py-4">
-        <Mascot message={`¡ESPECTACULAR! Ganaste ${stars} estrellitas.`} expression="excited" />
+        <Mascot message={score === 5 ? "¡ERES UN GENIO! ¡Todas a la primera!" : score >= 3 ? "¡Muy bien! Sigue practicando para ser un maestro." : "¡Buen intento! Vamos a intentarlo de nuevo pronto."} expression={score >= 3 ? "excited" : "happy"} />
         <motion.div initial={{ scale: 0.5 }} animate={{ scale: 1 }} className="bg-white p-10 rounded-[3rem] border-4 border-blue-100 shadow-2xl text-center relative overflow-hidden">
-          <h2 className="text-4xl font-black mb-4 text-primary tracking-tighter drop-shadow-sm">¡MISIÓN LOGRADA!</h2>
+          <h2 className="text-4xl font-black mb-4 text-primary tracking-tighter drop-shadow-sm uppercase">Resultado</h2>
           <div className="text-8xl mb-6 star-pulse drop-shadow-lg">⭐</div>
-          <p className="text-3xl font-black mb-8 text-slate-700">{correctCount} de {totalQuestions} Aciertos</p>
+          <p className="text-3xl font-black mb-4 text-slate-700">{score} de {totalQuestions} A la primera</p>
+          <p className="text-sm font-bold text-slate-400 mb-8 uppercase tracking-widest">+ {stars} Estrellitas ganadas</p>
           <button 
-            onClick={() => onFinish(stars, category, correctCount, totalQuestions)}
-            className="w-full bg-primary text-white font-black p-5 rounded-2xl border-b-4 border-yellow-600 text-xl hover:bg-yellow-400 transition-all uppercase active:translate-y-1 active:border-b-0"
+            onClick={() => onFinish(stars, category, score, totalQuestions)}
+            className="w-full bg-primary text-white font-black p-5 rounded-2xl border-b-4 border-yellow-600 text-xl hover:bg-yellow-400 transition-all uppercase active:translate-y-1 active:border-b-0 shadow-lg"
           >
-            ¡Dame mis Estrellas!
+            Guardar Estrellas
           </button>
           <div className="absolute bottom-0 left-0 p-4 opacity-5 text-6xl">✨</div>
         </motion.div>
