@@ -1,0 +1,96 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a user of the application (Parent or Child).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["parent", "child"] },
+        "parentId": { "type": "string", "description": "The UID of the parent if this user is a child profile." },
+        "points": { "type": "integer", "description": "Total magic stars collected by the child." },
+        "linkingCode": { "type": "string", "description": "Temporary code to link a child profile to a parent." }
+      },
+      "required": ["uid", "role", "displayName"]
+    },
+    "ExerciseResult": {
+      "title": "Exercise Result",
+      "description": "History of exercises completed by a child.",
+      "type": "object",
+      "properties": {
+        "childId": { "type": "string" },
+        "category": { "type": "string", "enum": ["sumas", "restas", "multiplicaciones", "divisiones", "figuras"] },
+        "score": { "type": "integer" },
+        "totalQuestions": { "type": "integer" },
+        "starsEarned": { "type": "integer" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["childId", "category", "score", "totalQuestions", "starsEarned", "timestamp"]
+    },
+    "Reward": {
+      "title": "Reward",
+      "description": "A coupon that can be redeemed.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "cost": { "type": "integer" },
+        "icon": { "type": "string" },
+        "isCustom": { "type": "boolean" },
+        "parentId": { "type": "string", "description": "If custom, the parent who created it." }
+      },
+      "required": ["title", "cost", "icon"]
+    },
+    "Redemption": {
+      "title": "Redemption",
+      "description": "A record of a reward claimed by a child.",
+      "type": "object",
+      "properties": {
+        "childId": { "type": "string" },
+        "rewardId": { "type": "string" },
+        "rewardTitle": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "parentId": { "type": "string" }
+      },
+      "required": ["childId", "rewardId", "rewardTitle", "status", "timestamp", "parentId"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Alerts for parents about child activities.",
+      "type": "object",
+      "properties": {
+        "parentId": { "type": "string" },
+        "message": { "type": "string" },
+        "childName": { "type": "string" },
+        "type": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["parentId", "message", "timestamp", "read"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Stores user profiles."
+    },
+    "/exerciseResults/{resultId}": {
+      "schema": "ExerciseResult",
+      "description": "Stores exercise history."
+    },
+    "/rewards/{rewardId}": {
+      "schema": "Reward",
+      "description": "Stores available rewards (standard and custom)."
+    },
+    "/redemptions/{redemptionId}": {
+      "schema": "Redemption",
+      "description": "Stores child redemptions."
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Stores parent alerts."
+    }
+  }
+}

@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Quicksand", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-primary: #FACC15; /* Amarillo vibrante */
+  --color-secondary: #3B82F6; /* Azul moderno */
+  --color-accent: #FB923C; /* Naranja alegre */
+  --color-success: #22C55E; /* Verde éxito */
+  --color-soft-green: #BBF7D0;
+  --color-soft-red: #EF4444;
+  --color-vibrant-pink: #EC4899;
+}
+
+body {
+  @apply bg-yellow-50 text-slate-800 overflow-x-hidden;
+}
+
+.card-shadow {
+  box-shadow: 0 8px 0 rgba(0,0,0,0.05);
+}
+
+.kid-button {
+  @apply relative transition-all duration-100 active:translate-y-1 active:shadow-none font-bold rounded-2xl border-b-4;
+  box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+}
+
+.bubble {
+  @apply relative bg-white border-4 border-blue-100 rounded-3xl p-6 shadow-xl;
+}
+
+.star-pulse {
+  filter: drop-shadow(0 0 8px #FACC15);
+}
+
+.nav-button {
+  @apply w-full flex items-center gap-3 p-4 bg-white text-slate-600 font-bold rounded-2xl border-b-4 border-slate-100 hover:bg-slate-50 transition-all;
+}
+
+.nav-button-active {
+  @apply bg-orange-400 text-white border-orange-600;
+}
+
+
